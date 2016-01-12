@@ -9,3 +9,7 @@ type Rudder struct {
 func Parse(html string) {
 
 }
+
+func Play(in string) string {
+	return in
+}
