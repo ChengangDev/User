@@ -1,8 +1,11 @@
 package sail
 
-import "testing"
+import (
+	//	"net/http"
+	"testing"
+)
 
-func TestParse(t *testing.T) {
+func TestPlay(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
@@ -18,4 +21,15 @@ func TestParse(t *testing.T) {
 			t.Errorf("Failure: in:%s got:%s want:%s", c.in, got, c.want)
 		}
 	}
+}
+
+func TestRequest(t *testing.T) {
+	cases := []struct {
+		inUrl    string
+		inMethod string
+	}{
+		{"www.baidu.com", "GET"},
+	}
+
+	t.Log(cases)
 }
