@@ -23,20 +23,52 @@ func TestPlay(t *testing.T) {
 	}
 }
 
+var XueQiuRudder = Rudder{
+	CountPattern:  "\\\"count\\\":[0-9]*",
+	PageNoPattern: "\\\"page\\\":[0-9]*",
+	//PageSizePattern:  "",
+	PageCountPattern: "\\\"maxPage\\\":[0-9]*",
+
+	IDPattern:    "\\\"id\\\":[0-9]*",
+	NamePattern:  "\\\"screen_name\\\":\\\"*\\\"",
+	OtherPattern: map[string]string{},
+}
+
 func TestGetRequest(t *testing.T) {
 	cases := []struct {
-		inUrl string
-		want  string
+		url    string
+		header *map[string]string
 	}{
-		{"https://www.baidu.com", ""},
+		{"http://127.0.0.1:8000/index.html", &DefaultHeader},
+		{"http://www.baidu.com", &DefaultHeader},
+		{"http://xueqiu.com/friendships/followers.json?pageNo=1&uid=3037882447&size=20", &DefaultHeader},
 	}
 
 	for _, c := range cases {
-		ret, err := GetRequest(c.inUrl, nil)
-		if err == nil {
+		_, err := GetRequest(c.url, c.header)
+		if err != nil {
 			t.Log(err.Error())
 		}
-		t.Log(ret)
+	}
+}
+
+func TestParse(t *testing.T) {
+	cases := []struct {
+		url    string
+		header *map[string]string
+		rudder *Rudder
+	}{
+		{"http://xueqiu.com/friendships/followers.json?pageNo=1&uid=3037882447&size=20",
+			&DefaultHeader, &XueQiuRudder},
 	}
 
+	for _, c := range cases {
+		resp, err := GetRequest(c.url, c.header)
+		if err != nil {
+			t.Error(err.Error())
+			continue
+		}
+
+		Parse(resp, c.rudder)
+	}
 }
