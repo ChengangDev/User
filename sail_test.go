@@ -10,7 +10,7 @@ func TestPlay(t *testing.T) {
 		in, want string
 	}{
 		{"Hello", "Hello"},
-		{"Thank", "Than"},
+		{"Thank", "Thank"},
 	}
 
 	for _, c := range cases {
@@ -23,13 +23,20 @@ func TestPlay(t *testing.T) {
 	}
 }
 
-func TestRequest(t *testing.T) {
+func TestGetRequest(t *testing.T) {
 	cases := []struct {
-		inUrl    string
-		inMethod string
+		inUrl string
+		want  string
 	}{
-		{"www.baidu.com", "GET"},
+		{"https://www.baidu.com", ""},
 	}
 
-	t.Log(cases)
+	for _, c := range cases {
+		ret, err := GetRequest(c.inUrl, nil)
+		if err == nil {
+			t.Log(err.Error())
+		}
+		t.Log(ret)
+	}
+
 }

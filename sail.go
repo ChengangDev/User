@@ -1,6 +1,9 @@
 package sail
 
-import "net/http"
+import (
+	"io/ioutil"
+	"net/http"
+)
 
 type Rudder struct {
 	Host  string
@@ -16,23 +19,26 @@ func Play(in string) string {
 	return in
 }
 
-func Request(url string, method string, header *map[string]string) {
-	client := &http.Client{
-		CheckRedirect: nil,
-	}
+func GetRequest(url string, header *map[string]string) (string, error) {
+	client := &http.Client{}
 
 	req, err := http.NewRequest("GET", url, nil)
-	if err.Error() == "" {
-
+	if err != nil {
+		return "", err
 	}
 
-	for key, value := range *header {
-		req.Header.Add(key, value)
+	if header != nil {
+		for key, value := range *header {
+			req.Header.Add(key, value)
+		}
 	}
-
 	resp, err := client.Do(req)
 
-	if err.Error() == "" {
-		resp.Body.Close()
+	if err != nil {
+		return "", err
 	}
+	defer resp.Body.Close()
+
+	sRet, err := ioutil.ReadAll(resp.Body)
+	return string(sRet), err
 }
