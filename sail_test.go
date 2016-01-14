@@ -5,34 +5,38 @@ import (
 	"testing"
 )
 
-func TestPlay(t *testing.T) {
-	cases := []struct {
-		in, want string
-	}{
-		{"Hello", "Hello"},
-		{"Thank", "Thank"},
-	}
-
-	for _, c := range cases {
-		got := Play(c.in)
-		if got == c.want {
-			t.Logf("Success: %s", c.in)
-		} else {
-			t.Errorf("Failure: in:%s got:%s want:%s", c.in, got, c.want)
-		}
-	}
+var TestSeed = Seed{
+	FixedFormater: "http://xueqiu.com/friendships/followers.json?uid=%v&pageNo=%v&size=%v",
+	ID:            "3037882447",
+	PageNo:        1,
+	PageSize:      2,
+	Host:          "com.xueqiu",
+	Depth:         6,
+	Thread:        8,
+	Interval:      100,
 }
 
 var XueQiuRudder = Rudder{
-	//CountPattern:  "\\\"count\\\":[0-9]*",
-	CountPattern:  "\\b\\\"count\\\":\\w[0-9]*\\z",
-	PageNoPattern: "\\\"page\\\":[0-9]*",
-	//PageSizePattern:  "",
-	PageCountPattern: "\\\"maxPage\\\":[0-9]*",
 
-	IDPattern:    "\\\"id\\\":[0-9]*",
-	NamePattern:  "\\\"screen_name\\\":\\\"*\\\"",
-	OtherPattern: map[string]string{},
+	CountPatterns: []string{
+		"\\\"count\\\":[0-9]*",
+		"[0-9]+"},
+	PageNoPatterns: []string{
+		"\\\"page\\\":[0-9]*",
+		"[0-9]+"},
+
+	PageCountPatterns: []string{
+		"\\\"maxPage\\\":[0-9]*",
+		"[0-9]+"},
+
+	IDsPatterns: []string{
+		"\\\"id\\\":[0-9]*",
+		"[0-9]+"},
+	NamesPatterns: []string{
+		"\\\"screen_name\\\":\\\"*\\\"",
+		""},
+	OtherPatterns:     []string{},
+	OtherListPatterns: []string{},
 }
 
 func TestGetRequest(t *testing.T) {
@@ -71,5 +75,12 @@ func TestParse(t *testing.T) {
 		}
 
 		Parse(resp, c.rudder)
+	}
+}
+
+func TestUsers(t *testing.T) {
+	_, err := Users(&TestSeed, &XueQiuRudder)
+	if err != nil {
+		t.Log(err.Error())
 	}
 }
