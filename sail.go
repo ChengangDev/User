@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 )
 
 var DefaultHeader = map[string]string{
@@ -32,6 +33,10 @@ type Rudder struct {
 	OtherPattern map[string]string
 }
 
+type Parser interface {
+	//func (r *Rudder)Parse{}
+}
+
 func Parse(resp string, rudder *Rudder) (err error) {
 	if rudder == nil {
 		return errors.New("Rudder is nil.")
@@ -40,6 +45,9 @@ func Parse(resp string, rudder *Rudder) (err error) {
 	if rudder.CountPattern == "" {
 		return errors.New("Rudder.CountPattern is empty.")
 	}
+	re := regexp.MustCompile(rudder.CountPattern)
+	count := re.FindString(resp)
+	fmt.Println("Parse Count:" + count)
 	return
 }
 

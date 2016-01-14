@@ -24,7 +24,8 @@ func TestPlay(t *testing.T) {
 }
 
 var XueQiuRudder = Rudder{
-	CountPattern:  "\\\"count\\\":[0-9]*",
+	//CountPattern:  "\\\"count\\\":[0-9]*",
+	CountPattern:  "\\b\\\"count\\\":\\w[0-9]*\\z",
 	PageNoPattern: "\\\"page\\\":[0-9]*",
 	//PageSizePattern:  "",
 	PageCountPattern: "\\\"maxPage\\\":[0-9]*",
