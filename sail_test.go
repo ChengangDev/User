@@ -1,6 +1,8 @@
 package sail
 
 import (
+	"io/ioutil"
+	"net/http"
 	//	"net/http"
 	"testing"
 )
@@ -78,9 +80,22 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestUsers(t *testing.T) {
-	_, err := Users(&TestSeed, &XueQiuRudder)
+func TestGetCookie(t *testing.T) {
+	cj, err := GetCookie("http://xueqiu.com")
+
+	cli := http.Client{Jar: cj}
+	resp, err := cli.Get("http://xueqiu.com/friendships/followers.json?pageNo=1&uid=3037882447&size=20")
+	s, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
 	if err != nil {
-		t.Log(err.Error())
+		t.Error(err.Error())
 	}
+	t.Logf("%q", s)
+}
+
+func TestUsers(t *testing.T) {
+	//	_, err := Users(&TestSeed, &XueQiuRudder)
+	//	if err != nil {
+	//		t.Log(err.Error())
+	//	}
 }

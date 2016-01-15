@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/cookiejar"
 	"regexp"
 	"strconv"
 	"time"
@@ -13,7 +14,7 @@ import (
 var DefaultHeader = map[string]string{
 	"Accept":     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
 	"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/47.0.2526.73 Chrome/47.0.2526.73 Safari/537.36",
-	"Cookie":     "s=1iyy12llah; __utma=1.1311703092.1452697027.1452697027.1452697027.1; __utmz=1.1452697027.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); Hm_lvt_1db88642e346389874251b5a1eded6e3=1452697028; xq_a_token=5ca726f28df667ac9a6a0e5ff22f2cd2a6fd7f8d; xq_r_token=79470dac5976ff342dc4accc39cacaa265ef4604",
+	"Cookie":     "s=34ye141q7j; domain=.xueqiu.com; path=/; expires=Sat, 14 Jan 2017 16:14:23 GMT; httpOnly",
 }
 
 //since regexp does not support lookbehind/ahead, use multi patterns instead
@@ -164,6 +165,21 @@ func GetRequest(url string, header *map[string]string) (string, error) {
 	}
 	fmt.Printf("sRet: %q\n", sRet)
 	return string(sRet), err
+}
+
+//get cookie from main page
+func GetCookie(url string) (cj *cookiejar.Jar, err error) {
+	cj, err = cookiejar.New(nil)
+	cli := http.Client{Jar: cj}
+	resp, err := cli.Get(url)
+	if err != nil {
+		return cj, nil
+	}
+	fmt.Println(*cj)
+
+	sc := resp.Header.Get("Set-Cookie")
+	fmt.Println("Set-Cookie:", sc)
+	return
 }
 
 func Users(s *Seed, r *Rudder) (l []string, err error) {
