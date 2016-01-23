@@ -11,7 +11,7 @@ var TestSeed = Seed{
 	FixedFormater: "http://xueqiu.com/friendships/followers.json?uid=%v&pageNo=%v&size=%v",
 	ID:            "3037882447",
 	PageNo:        1,
-	PageSize:      2,
+	PageSize:      20,
 	Host:          "com.xueqiu",
 	Depth:         6,
 	Thread:        8,
@@ -37,6 +37,9 @@ var XueQiuRudder = Rudder{
 	NamesPatterns: []string{
 		"\\\"screen_name\\\":\\\"*\\\"",
 		""},
+	FollowersCountPatterns: []string{
+		"\\\"followers_count\\\":[0-9]*",
+		"[0-9]+"},
 	OtherPatterns:     []string{},
 	OtherListPatterns: []string{},
 }
@@ -44,11 +47,11 @@ var XueQiuRudder = Rudder{
 func TestGetRequest(t *testing.T) {
 	cases := []struct {
 		url    string
-		header *map[string]string
+		header map[string]string
 	}{
-		{"http://127.0.0.1:8000/index.html", &DefaultHeader},
-		{"http://www.baidu.com", &DefaultHeader},
-		{"http://xueqiu.com/friendships/followers.json?pageNo=1&uid=3037882447&size=20", &DefaultHeader},
+		{"http://127.0.0.1:8000/index.html", DefaultHeader},
+		{"http://www.baidu.com", DefaultHeader},
+		{"http://xueqiu.com/friendships/followers.json?pageNo=1&uid=3037882447&size=20", DefaultHeader},
 	}
 
 	for _, c := range cases {
@@ -62,11 +65,11 @@ func TestGetRequest(t *testing.T) {
 func TestParse(t *testing.T) {
 	cases := []struct {
 		url    string
-		header *map[string]string
+		header map[string]string
 		rudder *Rudder
 	}{
 		{"http://xueqiu.com/friendships/followers.json?pageNo=1&uid=3037882447&size=20",
-			&DefaultHeader, &XueQiuRudder},
+			DefaultHeader, &XueQiuRudder},
 	}
 
 	for _, c := range cases {
@@ -93,9 +96,6 @@ func TestGetCookie(t *testing.T) {
 	t.Logf("%q", s)
 }
 
-func TestUsers(t *testing.T) {
-	//	_, err := Users(&TestSeed, &XueQiuRudder)
-	//	if err != nil {
-	//		t.Log(err.Error())
-	//	}
+func TestGetAllUsers(t *testing.T) {
+	GetAllUsers(&TestSeed, &XueQiuRudder)
 }

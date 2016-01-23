@@ -1,11 +1,14 @@
 package sail
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
+	//	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -14,7 +17,6 @@ import (
 var DefaultHeader = map[string]string{
 	"Accept":     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
 	"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/47.0.2526.73 Chrome/47.0.2526.73 Safari/537.36",
-	"Cookie":     "s=34ye141q7j; domain=.xueqiu.com; path=/; expires=Sat, 14 Jan 2017 16:14:23 GMT; httpOnly",
 }
 
 //since regexp does not support lookbehind/ahead, use multi patterns instead
@@ -33,10 +35,14 @@ type Rudder struct {
 	IDsPatterns []string
 	//pattern to get user name
 	NamesPatterns []string
+	//pattern to get followers count
+	FollowersCountPatterns []string
 	//other patterns to get user info
 	OtherPatterns     []string
 	OtherListPatterns []string
 }
+
+type UserInfo map[string]string
 
 type Seed struct {
 	FixedFormater string
@@ -54,9 +60,10 @@ func (s *Seed) GetUrl() (url string) {
 	return url
 }
 
-func Parse(resp string, rudder *Rudder) (pageNo int, pageCount int, ids []string, err error) {
+//old parse method
+func Parse(resp string, rudder *Rudder) (pageNo int, pageCount int, users map[string][]string, err error) {
 	if rudder == nil {
-		return pageNo, pageCount, ids, errors.New("Rudder is nil.")
+		return pageNo, pageCount, users, errors.New("Rudder is nil.")
 	}
 
 	count, err := parseSingle(resp, rudder.CountPatterns)
@@ -79,18 +86,34 @@ func Parse(resp string, rudder *Rudder) (pageNo int, pageCount int, ids []string
 	fmt.Println("Parse PageCount:", pageCount)
 	pageCount, err = strconv.Atoi(sPageCount)
 
-	ids, err = parseList(resp, rudder.IDsPatterns)
+	users = make(map[string][]string)
+	ids, err := parseList(resp, rudder.IDsPatterns)
 	if err != nil {
 		return
 	}
+	users["ids"] = ids
 	fmt.Println("Parse IDs:", ids)
-	//skip names
 
+	//parse names
+	names, err := parseList(resp, rudder.NamesPatterns)
+	if err != nil {
+		return
+	}
+	users["names"] = names
+	fmt.Println("Parse Names:", names)
+
+	//parse followers count
+	counts, err := parseList(resp, rudder.FollowersCountPatterns)
+	if err != nil {
+		return
+	}
+	users["counts"] = counts
 	//skip other
 
 	return
 }
 
+//parse single text
 func parseSingle(in string, patterns []string) (out string, err error) {
 	out = in
 	for _, pattern := range patterns {
@@ -105,6 +128,7 @@ func parseSingle(in string, patterns []string) (out string, err error) {
 	return out, nil
 }
 
+//parse list text and return list
 func parseList(in string, patterns []string) (out []string, err error) {
 	if len(patterns) < 2 {
 		return out, errors.New("List Patterns need 2+ patterns.")
@@ -130,7 +154,8 @@ func parseList(in string, patterns []string) (out []string, err error) {
 	return out, nil
 }
 
-func GetRequest(url string, header *map[string]string) (string, error) {
+//raw header
+func GetRequest(url string, header map[string]string) (string, error) {
 	fmt.Println("Get url: ", url)
 
 	client := &http.Client{}
@@ -143,7 +168,7 @@ func GetRequest(url string, header *map[string]string) (string, error) {
 
 	if header != nil {
 		fmt.Println("Header:")
-		for key, value := range *header {
+		for key, value := range header {
 			req.Header.Add(key, value)
 			fmt.Println(" ", key, ":", value)
 		}
@@ -173,36 +198,143 @@ func GetCookie(url string) (cj *cookiejar.Jar, err error) {
 	cli := http.Client{Jar: cj}
 	resp, err := cli.Get(url)
 	if err != nil {
+		log.Fatalln("GetCookie():", err.Error())
 		return cj, nil
 	}
-	fmt.Println(*cj)
 
 	sc := resp.Header.Get("Set-Cookie")
-	fmt.Println("Set-Cookie:", sc)
+	log.Println("GetCookie():", sc)
 	return
 }
 
-func Users(s *Seed, r *Rudder) (l []string, err error) {
-	if s.Depth < 0 {
-		return l, errors.New(
-			fmt.Sprintf("Stop at max depth:%v", s.Depth))
+//
+func GetRequestByCookie(url string, cj *cookiejar.Jar) (string, error) {
+	fmt.Println("Get url: ", url)
+
+	client := &http.Client{Jar: cj}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		fmt.Errorf(err.Error())
+		return "", err
 	}
 
+	sRet, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		fmt.Errorf(err.Error())
+		return "", err
+	}
+	fmt.Printf("sRet: %q\n", sRet)
+	return string(sRet), err
+}
+
+func ParseJson(resp string, out *map[string]interface{}) (err error) {
+	b := []byte(resp)
+	json.Unmarshal(b, out)
+
+	log.Println(out)
+	return
+}
+
+//fetch all followers of the seed
+func FetchFollowers(s *Seed, r *Rudder, ch chan UserInfo) (err error) {
+	log.Println("FetchFollowers:Start Fetch Followers.")
+	if s.Depth < 0 {
+		close(ch)
+		fmt.Println("Depth is less zero. Fetch over.")
+	}
+
+	cj, err := GetCookie("http://xueqiu.com")
 	for {
 		url := s.GetUrl()
-		resp, err := GetRequest(url, &DefaultHeader)
+		resp, err := GetRequestByCookie(url, cj)
 		if err != nil {
-			return l, err
+			fmt.Print(err.Error())
+			return err
 		}
-		pageNo, pageCount, ids, err := Parse(resp, r)
 
-		fmt.Printf("PageNo:%v, PageCount:%v, IDs:%v\n", pageNo, pageCount, ids)
+		m := map[string]interface{}{}
+		ParseJson(resp, &m)
+
+		followers, ok := m["followers"].([]interface{})
+		if !ok {
+			log.Fatalln("Parse followers as []interface{} failed")
+			break
+		}
+		for _, v := range followers {
+			//log.Println(reflect.TypeOf(u))
+			mv := v.(map[string]interface{})
+			//log.Println(mv)
+			//log.Println(reflect.TypeOf(mv["id"]))
+			u, _ := ValueToString(&mv)
+			ch <- UserInfo(*u)
+		}
+
+		pageCount := m["count"].(float64)
+		log.Println(pageCount)
+		if !ok {
+			log.Fatalln("Parse page count failed.")
+			break
+		}
+
 		s.PageNo++
-		if s.PageNo > pageCount {
+		if s.PageNo > int(pageCount) {
+			log.Println("Parse end of followers.")
 			break
 		}
 		time.Sleep(time.Second)
 	}
+	return
+}
 
-	return l, err
+func ValueToString(in *map[string]interface{}) (out *map[string]string, err error) {
+	out = &map[string]string{}
+
+	for k, v := range *in {
+		switch vv := v.(type) {
+		case int:
+		case int64:
+			(*out)[k] = strconv.Itoa(int(vv))
+		case float32:
+		case float64:
+			(*out)[k] = strconv.FormatFloat(vv, 'f', -1, 64)
+		case string:
+			(*out)[k] = vv
+		}
+	}
+	log.Println(*out)
+	return
+}
+
+func SaveUsers(ch chan UserInfo) (err error) {
+	log.Println("Save Users")
+	u := <-ch
+	fmt.Println(u)
+	return
+}
+
+func GetAllUsers(s *Seed, r *Rudder) (cnt int, err error) {
+	fmt.Println("Start GetAllUsers")
+	bExist, err := UserExisted(s.ID)
+	if !bExist {
+
+	}
+
+	bSeed, err := UserIsSeed(s.ID)
+	if !bSeed {
+		AddSeed(s.ID)
+	}
+
+	ch := make(chan UserInfo)
+	go FetchFollowers(s, r, ch)
+	//go SaveUsers(ch)
+	for {
+		u, ok := <-ch
+		if !ok {
+			break
+		}
+		fmt.Println(u)
+	}
+	return
 }
