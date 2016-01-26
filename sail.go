@@ -49,10 +49,10 @@ type Seed struct {
 	ID            string
 	PageNo        int
 	PageSize      int
-	Host          string
 	Depth         int
 	Thread        int
 	Interval      float32 //interval between each request
+
 }
 
 func (s *Seed) GetUrl() (url string) {
@@ -316,14 +316,16 @@ func SaveUsers(ch chan UserInfo) (err error) {
 
 func GetAllUsers(s *Seed, r *Rudder) (cnt int, err error) {
 	fmt.Println("Start GetAllUsers")
-	bExist, err := UserExisted(s.ID)
+
+	sc, err := NewSeaClient()
+	bExist, err := sc.UserExisted(s.ID)
 	if !bExist {
 
 	}
 
-	bSeed, err := UserIsSeed(s.ID)
+	bSeed, err := sc.UserIsSeed(s.ID)
 	if !bSeed {
-		AddSeed(s.ID)
+		sc.AddSeed(s.ID)
 	}
 
 	ch := make(chan UserInfo)
