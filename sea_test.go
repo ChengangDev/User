@@ -11,9 +11,9 @@ func TestGetClearSeed(t *testing.T) {
 	}
 	defer sc.Close()
 
-	t.Log("Start GetSeed", sc.GetSeed())
+	t.Log("Start GetSeed", sc.GetSeedValue())
 	sc.ClearSeeds()
-	t.Log("After ClearSeeds", sc.GetSeed())
+	t.Log("After ClearSeeds", sc.GetSeedValue())
 }
 
 func TestUserSeed(t *testing.T) {
@@ -24,23 +24,55 @@ func TestUserSeed(t *testing.T) {
 	defer sc.Close()
 
 	id := "123test"
-	t.Log("Start GetSeed", sc.GetSeed())
-	sc.DeleteSeed(id)
-	b, err := sc.UserIsSeed(id)
+	t.Log("Start GetSeed", sc.GetSeedValue())
+	b, err := sc.UserExisted(id)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+	} else {
+		if !b {
+			sc.AddUser(id, &map[string]string{"test": "test"})
+			t.Log("Add User firstly:")
+		} else {
+			t.Log("User exists:")
+		}
 	}
-	if b {
-		t.Error(id, "is seed after delete seed")
+	v, err := sc.GetUserAll(id)
+	t.Log("OldUser:", *v)
+
+	err = sc.DeleteSeed(id)
+	if err != nil {
+		t.Error(err)
+	} else {
+		t.Log("DeleteSeed in success.")
+	}
+	v, err = sc.GetUserAll(id)
+	t.Log("After DeleteSeed", *v)
+
+	b, err = sc.UserIsSeed(id)
+	if err != nil {
+		t.Error(err)
+	} else {
+		if b {
+			t.Error(id, "is seed after delete seed")
+		} else {
+			t.Log("Check UserIsSeed in success.")
+		}
 	}
 
-	sc.AddSeed(id)
+	err = sc.AddSeed(id)
+	if err != nil {
+		t.Error(err)
+	} else {
+		t.Log("AddSeed no error")
+	}
 	b, err = sc.UserIsSeed(id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !b {
 		t.Error(id, "is not seed after add seed")
+	} else {
+		t.Log("UserIsSeed after AddSeed")
 	}
 
 	sc.ClearSeeds()
@@ -50,6 +82,8 @@ func TestUserSeed(t *testing.T) {
 	}
 	if b {
 		t.Error(id, "is seed after clear seed")
+	} else {
+		t.Log("User is not Seed after clearing")
 	}
 
 	sc.AddSeed(id)
@@ -61,7 +95,8 @@ func TestUserSeed(t *testing.T) {
 		t.Error(id, "is not seed after add seed")
 	}
 
-	t.Log("After ClearSeed", sc.GetSeed())
+	t.Log("After ClearSeed", sc.GetSeedValue())
+	sc.DeleteUser(id)
 }
 
 func TestAddDelChkUser(t *testing.T) {
@@ -71,8 +106,8 @@ func TestAddDelChkUser(t *testing.T) {
 	}
 	defer sc.Close()
 
-	id := "123456test"
-	err = sc.DeleteSeed(id)
+	id := "123test"
+	err = sc.DeleteUser(id)
 	if err != nil {
 		t.Log(err)
 	}
@@ -107,10 +142,11 @@ func TestAddDelChkUser(t *testing.T) {
 		t.Log(id, "add successfully")
 	}
 
-	mm, err := sc.GetUser(id)
+	mm, err := sc.GetUserAll(id)
 	if err != nil {
 		t.Error(err)
 	}
+	t.Log("RawMap:", *mm)
 	for k, v := range m {
 		if v != (*mm)[k] {
 			t.Error(k, v, "is not added or getted")
@@ -119,10 +155,10 @@ func TestAddDelChkUser(t *testing.T) {
 		}
 	}
 
-	//	err = sc.DeleteUser(id)
-	//	if err != nil {
-	//		t.Error(err)
-	//	}
+	err = sc.DeleteUser(id)
+	if err != nil {
+		t.Error(err)
+	}
 
 	b, err = sc.UserExisted(id)
 	if err != nil {
@@ -134,7 +170,7 @@ func TestAddDelChkUser(t *testing.T) {
 		t.Log(id, "delete in success")
 	}
 
-	_, err = sc.GetUser(id)
+	_, err = sc.GetUserAll(id)
 	if err != nil {
 		t.Error(err)
 	}

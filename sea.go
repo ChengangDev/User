@@ -1,6 +1,7 @@
 package sail
 
 import (
+	"errors"
 	"log"
 	//	"strconv"
 
@@ -12,25 +13,29 @@ type DbOp interface {
 	//clear all seeds
 	ClearSeeds()
 	//get seed current flag
-	GetSeed() int64
+	GetSeedValue() int64
 	//check if user is a seed
-	UserIsSeed(string) (bool, error)
+	UserIsSeed(id string) (bool, error)
 	//mark user as a seed. if user does not exist, add it
-	AddSeed(string) error
+	AddSeed(id string) error
 	//unmark user
-	DeleteSeed(string) error
+	DeleteSeed(id string) error
+	//generate new seed
+	GenerateNewSeed() (id string, err error)
 
 	//clear all users
 	//ClearUsers() error
 
 	//check if user is existed
-	UserExisted(string) (bool, error)
+	UserExisted(id string) (bool, error)
 	//add a user
-	AddUser(string, *map[string]string) error
-	//
-	GetUser(string) (v *map[string]string, err error)
+	AddUser(id string, v *map[string]string) error
+	//get user all info
+	GetUserAll(id string) (v *map[string]string, err error)
+	//get user specific info
+	GetUserInfo(id string) (info string, err error)
 	//delete a user
-	DeleteUser(string) error
+	DeleteUser(id string) error
 }
 
 type SeaClient struct {
@@ -40,12 +45,14 @@ type SeaClient struct {
 
 var NAMESPACE_XUEQIU_USER = "com.xueqiu:user:"
 var NAMESPACE_XUEQIU_SEED = "com.xueqiu:seed:"
-var KEY_SEED = "SEED"
+var KEY_SEED = "KEY_SEED"
 var VALUE_INIT_SEED = int64(0)
 
 func GetID(id string) string {
 	return NAMESPACE_XUEQIU_USER + id
 }
+
+//methods
 
 //create a new client
 func NewSeaClient() (sea *SeaClient, err error) {
@@ -70,8 +77,10 @@ func (sc *SeaClient) Close() {
 	sc.p.Put(sc.cli)
 }
 
+//interfaces
+
 //get current seed flag
-func (sc *SeaClient) GetSeed() int64 {
+func (sc *SeaClient) GetSeedValue() int64 {
 	seed, err := sc.cli.Cmd("GET", NAMESPACE_XUEQIU_SEED+KEY_SEED).Int64()
 	if err != nil {
 		log.Println(err)
@@ -90,7 +99,7 @@ func (sc *SeaClient) GetSeed() int64 {
 //make all not seed by increase seed flag by one
 //since there are too many old seeds
 func (sc *SeaClient) ClearSeeds() {
-	seed := sc.GetSeed()
+	seed := sc.GetSeedValue()
 	seed++
 	sc.cli.Cmd("SET", NAMESPACE_XUEQIU_SEED+KEY_SEED, seed)
 	return
@@ -98,25 +107,37 @@ func (sc *SeaClient) ClearSeeds() {
 
 //used to be seed or not
 func (sc *SeaClient) UserIsSeed(id string) (b bool, err error) {
-	v, err := sc.cli.Cmd("GET", NAMESPACE_XUEQIU_USER+id).Int64()
+	v, err := sc.cli.Cmd("HGET", GetID(id), KEY_SEED).Int64()
 	if err != nil {
-		log.Println(err.Error())
 		return false, err
 	}
 
-	if v == sc.GetSeed() {
+	if v == sc.GetSeedValue() {
 		return true, nil
 	}
 	return false, nil
 }
 
 func (sc *SeaClient) AddSeed(id string) (err error) {
-	_ = sc.cli.Cmd("SET", GetID(id), sc.GetSeed())
+	err = sc.cli.Cmd("HMSET", GetID(id), KEY_SEED, sc.GetSeedValue()).Err
 	return
 }
 
 func (sc *SeaClient) DeleteSeed(id string) (err error) {
-	_ = sc.cli.Cmd("SET", GetID(id), -1)
+	ok, err := sc.cli.Cmd("HMSET", GetID(id), KEY_SEED, -1).Str()
+	if err != nil {
+		return err
+	}
+
+	if ok != "OK" {
+		return errors.New("Failed to set KEY_SEED -1")
+	}
+	return nil
+}
+
+//generator
+func (sc *SeaClient) GenerateNewSeed() (id string, err error) {
+
 	return
 }
 
@@ -134,16 +155,16 @@ func (sc *SeaClient) UserExisted(id string) (b bool, err error) {
 }
 
 func (sc *SeaClient) AddUser(id string, v *map[string]string) (err error) {
-	ar := []string{}
+	ar := []string{GetID(id)}
 	for kk, vv := range *v {
 		ar = append(ar, kk, vv)
 	}
-	sc.cli.Cmd("SET", GetID(id), ar)
+	sc.cli.Cmd("HMSET", ar)
 	return
 }
 
-func (sc *SeaClient) GetUser(id string) (v *map[string]string, err error) {
-	m, err := sc.cli.Cmd("GET", GetID(id)).Map()
+func (sc *SeaClient) GetUserAll(id string) (v *map[string]string, err error) {
+	m, err := sc.cli.Cmd("HGETALL", GetID(id)).Map()
 	return &m, err
 }
 
