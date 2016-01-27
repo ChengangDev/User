@@ -135,7 +135,8 @@ func (sc *SeaClient) DeleteSeed(id string) (err error) {
 	return nil
 }
 
-//generator
+//generate seed from users by scan hmap skip users which are seed
+//already or have less than
 func (sc *SeaClient) GenerateNewSeed() (id string, err error) {
 
 	return

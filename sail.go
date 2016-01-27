@@ -209,7 +209,7 @@ func GetCookie(url string) (cj *cookiejar.Jar, err error) {
 
 //
 func GetRequestByCookie(url string, cj *cookiejar.Jar) (string, error) {
-	fmt.Println("Get url: ", url)
+	log.Println("Get url: ", url)
 
 	client := &http.Client{Jar: cj}
 
@@ -225,7 +225,7 @@ func GetRequestByCookie(url string, cj *cookiejar.Jar) (string, error) {
 		fmt.Errorf(err.Error())
 		return "", err
 	}
-	fmt.Printf("sRet: %q\n", sRet)
+	//fmt.Printf("sRet: %q\n", sRet)
 	return string(sRet), err
 }
 
@@ -233,12 +233,12 @@ func ParseJson(resp string, out *map[string]interface{}) (err error) {
 	b := []byte(resp)
 	json.Unmarshal(b, out)
 
-	log.Println(out)
+	//log.Println(out)
 	return
 }
 
 //fetch all followers of the seed
-func FetchFollowers(s *Seed, r *Rudder, ch chan UserInfo) (err error) {
+func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 	log.Println("FetchFollowers:Start Fetch Followers.")
 	if s.Depth < 0 {
 		close(ch)
@@ -303,7 +303,7 @@ func ValueToString(in *map[string]interface{}) (out *map[string]string, err erro
 			(*out)[k] = vv
 		}
 	}
-	log.Println(*out)
+	//log.Println(*out)
 	return
 }
 
@@ -314,13 +314,13 @@ func SaveUsers(ch chan UserInfo) (err error) {
 	return
 }
 
-func GetAllUsers(s *Seed, r *Rudder) (cnt int, err error) {
+func GetAllUsers(s *Seed) (cnt int, err error) {
 	fmt.Println("Start GetAllUsers")
 
 	sc, err := NewSeaClient()
 	bExist, err := sc.UserExisted(s.ID)
 	if !bExist {
-
+		//sc.AddUser()
 	}
 
 	bSeed, err := sc.UserIsSeed(s.ID)
@@ -329,14 +329,18 @@ func GetAllUsers(s *Seed, r *Rudder) (cnt int, err error) {
 	}
 
 	ch := make(chan UserInfo)
-	go FetchFollowers(s, r, ch)
+	go FetchFollowers(s, ch)
 	//go SaveUsers(ch)
-	for {
+	for i := 1; ; i++ {
 		u, ok := <-ch
 		if !ok {
 			break
 		}
-		fmt.Println(u)
+		if i%100 == 0 {
+			fmt.Println(i)
+		}
+		m := map[string]string(u)
+		sc.AddUser(u["id"], &m)
 	}
 	return
 }
