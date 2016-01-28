@@ -12,8 +12,8 @@ var TestSeed = sail.Seed{
 	Interval:      100,
 }
 
-func TestGetAllUsers(t *testing.T) {
-	//GetAllUsers(&TestSeed)
+func TestGetAndSaveFollowers(t *testing.T) {
+
 	sc, err := sea.NewSeaClient()
 	if err != nil {
 		t.Error(err)
@@ -21,5 +21,9 @@ func TestGetAllUsers(t *testing.T) {
 	}
 	defer sc.Close()
 
-	GetAndSaveFollowers(&TestSeed, sc)
+	ch := make(chan []int)
+	GetAndSaveFollowers(&TestSeed, sc, ch)
+
+	ad := <-ch
+	t.Log(ad)
 }
