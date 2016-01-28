@@ -49,9 +49,7 @@ type Seed struct {
 	ID            string
 	PageNo        int
 	PageSize      int
-	Depth         int
-	Thread        int
-	Interval      float32 //interval between each request
+	Interval      int //interval between each request
 
 }
 
@@ -215,14 +213,12 @@ func GetRequestByCookie(url string, cj *cookiejar.Jar) (string, error) {
 
 	resp, err := client.Get(url)
 	if err != nil {
-		fmt.Errorf(err.Error())
 		return "", err
 	}
 
 	sRet, err := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
 	if err != nil {
-		fmt.Errorf(err.Error())
 		return "", err
 	}
 	//fmt.Printf("sRet: %q\n", sRet)
@@ -240,17 +236,21 @@ func ParseJson(resp string, out *map[string]interface{}) (err error) {
 //fetch all followers of the seed
 func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 	log.Println("FetchFollowers:Start Fetch Followers.")
-	if s.Depth < 0 {
-		close(ch)
-		fmt.Println("Depth is less zero. Fetch over.")
-	}
 
 	cj, err := GetCookie("http://xueqiu.com")
 	for {
+		//interval between each request
+		sch := make(chan int)
+		tik := func(sig chan int) {
+			time.Sleep(time.Millisecond * time.Duration(s.Interval))
+			close(sig)
+		}
+		tik(sch)
+
 		url := s.GetUrl()
 		resp, err := GetRequestByCookie(url, cj)
 		if err != nil {
-			fmt.Print(err.Error())
+			log.Println(err)
 			return err
 		}
 
@@ -272,7 +272,7 @@ func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 		}
 
 		pageCount := m["count"].(float64)
-		log.Println(pageCount)
+		//log.Println(pageCount)
 		if !ok {
 			log.Fatalln("Parse page count failed.")
 			break
@@ -283,7 +283,11 @@ func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 			log.Println("Parse end of followers.")
 			break
 		}
-		time.Sleep(time.Second)
+
+		//interval ends
+		for _ = range sch {
+			//
+		}
 	}
 	return
 }
@@ -314,33 +318,30 @@ func SaveUsers(ch chan UserInfo) (err error) {
 	return
 }
 
-func GetAllUsers(s *Seed) (cnt int, err error) {
-	fmt.Println("Start GetAllUsers")
-
-	sc, err := NewSeaClient()
-	bExist, err := sc.UserExisted(s.ID)
-	if !bExist {
-		//sc.AddUser()
-	}
-
-	bSeed, err := sc.UserIsSeed(s.ID)
-	if !bSeed {
-		sc.AddSeed(s.ID)
-	}
+//
+func GetAndSaveFollowers(s *Seed, db DbOp) (cnt int, err error) {
+	log.Println("GetAndSaveFollowers of:", s.ID)
 
 	ch := make(chan UserInfo)
 	go FetchFollowers(s, ch)
-	//go SaveUsers(ch)
-	for i := 1; ; i++ {
+
+	i := 0
+	for {
 		u, ok := <-ch
 		if !ok {
 			break
 		}
-		if i%100 == 0 {
-			fmt.Println(i)
-		}
 		m := map[string]string(u)
-		sc.AddUser(u["id"], &m)
+		db.AddUser(u["id"], &m)
+		i++
+
+		//more than 10000
+		if i%10000 == 0 {
+			log.Println(s.ID, ":", i)
+		}
 	}
+
+	db.AddSeed(s.ID)
+	log.Println(s.ID, "has", i, "followers.")
 	return
 }

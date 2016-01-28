@@ -33,7 +33,7 @@ type DbOp interface {
 	//get user all info
 	GetUserAll(id string) (v *map[string]string, err error)
 	//get user specific info
-	GetUserInfo(id string) (info string, err error)
+	//GetUserInfo(id string) (info string, err error)
 	//delete a user
 	DeleteUser(id string) error
 }

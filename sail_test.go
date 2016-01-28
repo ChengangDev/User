@@ -11,9 +11,7 @@ var TestSeed = Seed{
 	FixedFormater: "http://xueqiu.com/friendships/followers.json?uid=%v&pageNo=%v&size=%v",
 	ID:            "3037882447",
 	PageNo:        1,
-	PageSize:      100,
-	Depth:         6,
-	Thread:        8,
+	PageSize:      1000,
 	Interval:      100,
 }
 
@@ -93,8 +91,4 @@ func TestGetCookie(t *testing.T) {
 		t.Error(err.Error())
 	}
 	t.Logf("%q", s)
-}
-
-func TestGetAllUsers(t *testing.T) {
-	//GetAllUsers(&TestSeed)
 }
