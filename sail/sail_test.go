@@ -7,14 +7,6 @@ import (
 	"testing"
 )
 
-var TestSeed = Seed{
-	FixedFormater: "http://xueqiu.com/friendships/followers.json?uid=%v&pageNo=%v&size=%v",
-	ID:            "3037882447",
-	PageNo:        1,
-	PageSize:      1000,
-	Interval:      100,
-}
-
 var XueQiuRudder = Rudder{
 
 	CountPatterns: []string{

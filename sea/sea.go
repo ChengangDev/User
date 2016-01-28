@@ -1,4 +1,4 @@
-package sail
+package sea
 
 import (
 	"errors"
