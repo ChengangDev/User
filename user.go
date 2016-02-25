@@ -1,6 +1,10 @@
 package User
 
-import "github.com/ChengangDev/User/sail"
+import (
+	"strconv"
+
+	"github.com/ChengangDev/User/sail"
+)
 import "github.com/ChengangDev/User/sea"
 import "log"
 
@@ -18,6 +22,11 @@ func GetAndSaveFollowers(s *sail.Seed, db sea.DbOp, fin chan []int) (cnt int, er
 			break
 		}
 		m := map[string]string(u)
+
+		//add to sorted map
+		count, err := strconv.Atoi(u["followers_count"])
+		db.SortUser(u["id"], int64(count))
+
 		nScan++
 		//skip added user
 		b, err := db.UserExisted(u["id"])
@@ -42,5 +51,16 @@ func GetAndSaveFollowers(s *sail.Seed, db sea.DbOp, fin chan []int) (cnt int, er
 }
 
 func GetAllUsers(s *sail.Seed, db sea.DbOp) {
+	sc, err := sea.NewSeaClient()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer sc.Close()
 
+	ch := make(chan []int)
+	GetAndSaveFollowers(s, sc, ch)
+
+	ad := <-ch
+	log.Println(ad)
 }

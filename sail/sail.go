@@ -270,7 +270,7 @@ func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 			ch <- UserInfo(*u)
 		}
 
-		pageCount := m["count"].(float64)
+		pageCount := m["maxPage"].(float64)
 		//log.Println(pageCount)
 		if !ok {
 			log.Fatalln("Parse page count failed.")
@@ -288,6 +288,7 @@ func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 			//
 		}
 	}
+	close(ch)
 	return
 }
 
