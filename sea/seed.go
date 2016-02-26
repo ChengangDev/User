@@ -2,50 +2,36 @@ package sea
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	//	"log"
+	"strconv"
 )
 
 type SeedOp interface {
-	//clear all seeds
-	ClearSeeds()
+	//add id as preparation
+	AddPreparation(id string, override bool, more ...string) error
+	//delete all seed data including preparation id
+	ClearAllSeeds()
+
 	//check if user is a seed
 	UserIsSeed(id string) (bool, error)
 	//mark user as a seed. if user does not exist, add it
-	AddSeed(id string) error
+	MarkSeed(id string) error
 	//unmark user
-	DeleteSeed(id string) error
-	//generate new seed
-	GenerateNewSeed() (id string, err error)
+	UnmarkSeed(id string) error
+	//unmark all seeds
+	//UnmarkAllSeeds()
+	//pick a user as seed, user will be mark as seed
+	PickSeed() (id string, err error)
 }
 
-var NAMESPACE_XUEQIU_SEED = "com.xueqiu:seed:"
 var NAMESPACE_XUEQIU_FOLLOWER = "com.xueqiu:follower:"
-var FLAG_SEED = "FLAG_SEED"
-var VALUE_INIT_SEED = int64(0)
-
-func getSeedID(id string) string {
-	return NAMESPACE_XUEQIU_SEED + id
-}
+var OFFSET = int64(400)
+var MIN_COUNT = int64(10000)
 
 func getZName() string {
 	return NAMESPACE_XUEQIU_FOLLOWER + "count"
-}
-
-//get current seed flag
-func (sc *SeaClient) getFlagSeedValue() int64 {
-	seed, err := sc.cli.Cmd("GET", getSeedID(FLAG_SEED)).Int64()
-	if err != nil {
-		log.Println(err)
-		log.Println("GetSeed failed, use VALUE_INIT_SEED")
-		return VALUE_INIT_SEED
-	}
-
-	if seed < 0 {
-		log.Println("GetSeed smaller than 0, ", seed)
-		return VALUE_INIT_SEED
-	}
-
-	return seed
 }
 
 func (sc *SeaClient) clearSortedUsers() {
@@ -60,6 +46,15 @@ func (sc *SeaClient) deleteSortedUser(id string) {
 	sc.cli.Cmd("ZREM", getZName(), id)
 }
 
+func (sc *SeaClient) userInSortedSet(id string) bool {
+	resp := sc.cli.Cmd("ZSCORE", getZName(), id)
+	if resp.String() == "Resp(Nil)" {
+		return false
+	} else {
+		return true
+	}
+}
+
 //start from 0
 func (sc *SeaClient) getUserRank(id string) (rank int64, err error) {
 	rank, err = sc.cli.Cmd("ZRANK", getZName(), id).Int64()
@@ -70,60 +65,90 @@ func (sc *SeaClient) getUserRank(id string) (rank int64, err error) {
 }
 
 //get score of memeber
-func (sc *SeaClient) getUserScore(id string) (rank int64, err error) {
-	rank, err = sc.cli.Cmd("ZSCORE", getZName(), id).Int64()
+func (sc *SeaClient) getUserScore(id string) (score int64, err error) {
+	resp := sc.cli.Cmd("ZSCORE", getZName(), id)
+	if resp.String() == "Resp(Nil)" {
+		return 0, errors.New("User not exists.")
+	}
+
+	score, err = resp.Int64()
 	if err != nil {
 		return -1, err
 	}
-	return rank, nil
+	return score, nil
 }
 
-//make all old seeds be not seeds by increasing the seed flag by one
-//since there are too many old seeds
-func (sc *SeaClient) ClearSeeds() {
-	seed := sc.getFlagSeedValue()
-	seed++
-	sc.cli.Cmd("SET", getSeedID(FLAG_SEED), seed)
+func (sc *SeaClient) AddPreparation(id string, override bool, more ...string) error {
+	if len(more) != 1 {
+		return errors.New(fmt.Sprint("AddPreparation needs 3 arguments, but get", 2+len(more)))
+	}
+	if !override {
+		bSeed := sc.UserIsSeed(id)
+		if bSeed {
+			//skip
+			return nil
+		}
+	}
+
+	count, err := strconv.Atoi(more[0])
+	if err != nil {
+		return err
+	}
+	sc.sortUser(id, int64(count))
+	return nil
+}
+
+func (sc *SeaClient) ClearAllSeeds() {
+	sc.clearSortedUsers()
 	return
 }
 
 //used to be seed or not
-func (sc *SeaClient) UserIsSeed(id string) (b bool, err error) {
-	v, err := sc.cli.Cmd("GET", getSeedID(id)).Int64()
+func (sc *SeaClient) UserIsSeed(id string) (b bool) {
+	if !sc.userInSortedSet(id) {
+		return false
+	}
+	score, err := sc.getUserScore(id)
 	if err != nil {
-		return false, err
+		log.Fatalln(err)
+		return false
 	}
 
-	if v == sc.getFlagSeedValue() {
-		return true, nil
+	if score < 0 {
+		return true
 	}
-	return false, nil
+	return false
 }
 
-func (sc *SeaClient) AddSeed(id string) (err error) {
-	err = sc.cli.Cmd("SET", getSeedID(id), sc.getFlagSeedValue()).Err
-	return
-}
-
-func (sc *SeaClient) DeleteSeed(id string) (err error) {
-	ok, err := sc.cli.Cmd("SET", getSeedID(id), -1).Str()
+func (sc *SeaClient) MarkSeed(id string) (err error) {
+	count, err := sc.getUserScore(id)
 	if err != nil {
 		return err
 	}
+	if count > 0 {
+		sc.sortUser(id, -count)
+	}
+	return nil
+}
 
-	if ok != "OK" {
-		return errors.New("Failed to set KEY_SEED -1")
+func (sc *SeaClient) UnmarkSeed(id string) (err error) {
+	count, err := sc.getUserScore(id)
+	if err != nil {
+		return err
+	}
+	if count < 0 {
+		sc.sortUser(id, -count)
 	}
 	return nil
 }
 
 //generate seed from users by scan hmap skip users which are seed
 //already or have less than
-func (sc *SeaClient) GenerateNewSeed() (id string, err error) {
-	count, err := sc.cli.Cmd("ZCARD", getZName()).Int64()
+func (sc *SeaClient) PickSeed() (id string, err error) {
+	total, err := sc.cli.Cmd("ZCARD", getZName()).Int64()
 	if err != nil {
 		return "", err
-	} else if count == 0 {
+	} else if total == 0 {
 		return "", errors.New("No more seeds.")
 	}
 
@@ -131,6 +156,6 @@ func (sc *SeaClient) GenerateNewSeed() (id string, err error) {
 	if err != nil {
 		return "", err
 	}
-	id = ids[0]
-	return
+
+	return ids[0], nil
 }

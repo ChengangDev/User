@@ -2,6 +2,7 @@ package sail
 
 import (
 	"io/ioutil"
+	"log"
 	"net/http"
 	//	"net/http"
 	"testing"
@@ -83,4 +84,35 @@ func TestGetCookie(t *testing.T) {
 		t.Error(err.Error())
 	}
 	t.Logf("%q", s)
+}
+
+func TestFetchFollowers(t *testing.T) {
+
+	host_url := "http://xueqiu.com"
+	ids := []string{
+		"6346418304",
+		"9905072371",
+		"4484481018",
+		"1855822841",
+	}
+	sck, err := NewSharedCookie(host_url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	seed := &Seed{
+		FixedFormater: "http://xueqiu.com/friendships/followers.json?uid=%v&pageNo=%v&size=%v",
+		ID:            "1234461197",
+		PageNo:        1,
+		PageSize:      1000,
+		Interval:      1,
+	}
+
+	seed.ID = ids[0]
+	ch1 := make(chan UserInfo)
+	go FetchFollowers(seed, sck, ch1)
+	for u := range ch1 {
+
+		log.Println(u)
+
+	}
 }

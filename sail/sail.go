@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -49,12 +50,59 @@ type Seed struct {
 	PageNo        int
 	PageSize      int
 	Interval      int //interval between each request
-
 }
 
 func (s *Seed) GetUrl() (url string) {
 	url = fmt.Sprintf(s.FixedFormater, s.ID, s.PageNo, s.PageSize)
 	return url
+}
+
+type SharedCookie struct {
+	mu  sync.Mutex
+	url string
+	cj  *cookiejar.Jar
+}
+
+func NewSharedCookie(url string) (sck *SharedCookie, err error) {
+	sck = &SharedCookie{}
+	sck.cj, err = GetCookie(url)
+	return sck, err
+}
+
+func (ck *SharedCookie) GetSharedCookie() (cj *cookiejar.Jar, err error) {
+	if ck.cj == nil {
+		return nil, errors.New("Cookie should init at first.")
+	}
+	return ck.cj, nil
+}
+
+func (ck *SharedCookie) GetCookieUrl() (url string, err error) {
+	if ck.cj == nil {
+		return "", errors.New("Cookie should init at first.")
+	}
+	return ck.url, nil
+}
+
+func (ck *SharedCookie) UpdateSharedCookie() (cj *cookiejar.Jar, err error) {
+	ck.mu.Lock()
+	defer ck.mu.Unlock()
+
+	for i, j := int64(1), int64(1); ; i++ {
+		if j < 60 {
+			j = j * 2
+		}
+		ck.cj, err = GetCookie(ck.url)
+		if err == nil {
+			log.Println(ck.url, "update shared cookie success.")
+			return ck.cj, nil
+		}
+
+		log.Fatal(ck.url, "update cookie failed:", err.Error())
+		log.Println("Try", i, "times in", j, "seconds...")
+		//interval between next try
+		time.Sleep(time.Second * time.Duration(j))
+	}
+	return ck.cj, nil
 }
 
 //old parse method
@@ -233,10 +281,10 @@ func ParseJson(resp string, out *map[string]interface{}) (err error) {
 }
 
 //fetch all followers of the seed
-func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
-	log.Println("FetchFollowers:Start Fetch Followers.")
+func FetchFollowers(s *Seed, sck *SharedCookie, ch chan UserInfo) (err error) {
+	log.Println("FetchFollowers:Start Fetch Followers of", s.ID)
+	defer close(ch)
 
-	cj, err := GetCookie("http://xueqiu.com")
 	for {
 		//interval between each request
 		sch := make(chan int)
@@ -247,19 +295,46 @@ func FetchFollowers(s *Seed, ch chan UserInfo) (err error) {
 		tik(sch)
 
 		url := s.GetUrl()
-		resp, err := GetRequestByCookie(url, cj)
-		if err != nil {
-			log.Println(err)
-			return err
+		var resp string
+		if sck == nil {
+			//get without cookie
+			resp, err = GetRequestByCookie(url, nil)
+			if err != nil {
+				log.Fatal(err)
+				continue
+			}
+		} else {
+			//use cookie
+			cj, err := sck.GetSharedCookie()
+			if err != nil {
+				log.Fatal(err)
+				return err
+			}
+			resp, err = GetRequestByCookie(url, cj)
+			if err != nil {
+				//in case cookie out of date, update cookie for another time
+				log.Println("Try update cookie...")
+				cj, err := sck.UpdateSharedCookie()
+				if err != nil {
+					log.Fatal(err)
+					return err
+				}
+				//another get using new cookie
+				resp, err = GetRequestByCookie(url, cj)
+				if err != nil {
+					log.Fatal(err)
+					continue
+				}
+				log.Println("Use new cookie in success.")
+			}
 		}
-
 		m := map[string]interface{}{}
 		ParseJson(resp, &m)
 
 		followers, ok := m["followers"].([]interface{})
 		if !ok {
 			log.Fatalln("Parse followers as []interface{} failed")
-			break
+			continue
 		}
 		for _, v := range followers {
 			//log.Println(reflect.TypeOf(u))
@@ -308,12 +383,5 @@ func ValueToString(in *map[string]interface{}) (out *map[string]string, err erro
 		}
 	}
 	//log.Println(*out)
-	return
-}
-
-func SaveUsers(ch chan UserInfo) (err error) {
-	log.Println("Save Users")
-	u := <-ch
-	fmt.Println(u)
 	return
 }

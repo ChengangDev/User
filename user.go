@@ -8,8 +8,20 @@ import (
 import "github.com/ChengangDev/User/sea"
 import "log"
 
+func SaveOneFollower(db sea.DbOp, sop sea.SeedOp, u *sail.UserInfo, overide bool) (err error) {
+	//m := map[string]string(*u)
+
+	//add to sorted map
+	count, err := strconv.Atoi((*u)["followers_count"])
+	if err != nil {
+		return err
+	}
+	sop.AddSeed((*u)["id"], int64(count))
+	return nil
+}
+
 //get and save followers of user
-func GetAndSaveFollowers(s *sail.Seed, db sea.DbOp, fin chan []int) (cnt int, err error) {
+func FetchAndSaveFollowers(s *sail.Seed, db sea.DbOp, fin chan []int) (cnt int, err error) {
 	log.Println("GetAndSaveFollowers of:", s.ID)
 
 	ch := make(chan sail.UserInfo)
@@ -22,10 +34,6 @@ func GetAndSaveFollowers(s *sail.Seed, db sea.DbOp, fin chan []int) (cnt int, er
 			break
 		}
 		m := map[string]string(u)
-
-		//add to sorted map
-		count, err := strconv.Atoi(u["followers_count"])
-		db.SortUser(u["id"], int64(count))
 
 		nScan++
 		//skip added user
@@ -47,6 +55,11 @@ func GetAndSaveFollowers(s *sail.Seed, db sea.DbOp, fin chan []int) (cnt int, er
 
 	log.Println("GetAndSaveFollowers of", s.ID, "finished.", nAdd, "/", nScan)
 	fin <- []int{nAdd, nScan}
+	return
+}
+
+func GetFollowers(s *sail.Seed) (count int, err error) {
+
 	return
 }
 
