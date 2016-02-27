@@ -15,7 +15,7 @@ type SeedOp interface {
 	ClearAllSeeds()
 
 	//check if user is a seed
-	UserIsSeed(id string) (bool, error)
+	UserIsSeed(id string) bool
 	//mark user as a seed. if user does not exist, add it
 	MarkSeed(id string) error
 	//unmark user
@@ -23,7 +23,7 @@ type SeedOp interface {
 	//unmark all seeds
 	//UnmarkAllSeeds()
 	//pick a user as seed, user will be mark as seed
-	PickSeed() (id string, err error)
+	GetSeed(pick func(interface{}) bool) (id string, err error)
 }
 
 var NAMESPACE_XUEQIU_FOLLOWER = "com.xueqiu:follower:"
@@ -76,6 +76,21 @@ func (sc *SeaClient) getUserScore(id string) (score int64, err error) {
 		return -1, err
 	}
 	return score, nil
+}
+
+func (sc *SeaClient) peekUser() (id string, err error) {
+	total, err := sc.cli.Cmd("ZCARD", getZName()).Int64()
+	if err != nil {
+		return "", err
+	} else if total == 0 {
+		return "", nil
+	}
+
+	ids, err := sc.cli.Cmd("ZREVRANGE", getZName(), 0, 1).List()
+	if err != nil {
+		return "", err
+	}
+	return ids[0], nil
 }
 
 func (sc *SeaClient) AddPreparation(id string, override bool, more ...string) error {
@@ -144,18 +159,26 @@ func (sc *SeaClient) UnmarkSeed(id string) (err error) {
 
 //generate seed from users by scan hmap skip users which are seed
 //already or have less than
-func (sc *SeaClient) PickSeed() (id string, err error) {
-	total, err := sc.cli.Cmd("ZCARD", getZName()).Int64()
-	if err != nil {
-		return "", err
-	} else if total == 0 {
-		return "", errors.New("No more seeds.")
-	}
-
-	ids, err := sc.cli.Cmd("ZRANGE", getZName(), 0, 1).List()
+func (sc *SeaClient) GetSeed(pick func(interface{}) bool) (id string, err error) {
+	id, err = sc.peekUser()
 	if err != nil {
 		return "", err
 	}
+	if id == "" {
+		return "", nil
+	}
 
-	return ids[0], nil
+	score, err := sc.getUserScore(id)
+	if err != nil {
+		return "", err
+	}
+	if !pick(score) {
+		return "", nil
+	}
+	err = sc.MarkSeed(id)
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }

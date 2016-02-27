@@ -149,6 +149,17 @@ func TestSeedOp(t *testing.T) {
 		t.Log("OK,", err.Error())
 	}
 
+	id, err := sc.peekUser()
+	if err == nil {
+		if id == "" {
+			t.Log("peekUser OK: id is empty")
+		} else {
+			t.Error("peekUser Error: id is", id)
+		}
+	} else {
+		t.Error("peekUser Error:", err)
+	}
+
 	ids := []string{"1", "2", "3", "4"}
 	for _, id := range ids {
 		err = sc.AddPreparation(id, false, id)
@@ -163,6 +174,17 @@ func TestSeedOp(t *testing.T) {
 			t.Error("UserIsSeed Error:", id, "is not seed")
 		} else {
 			t.Log("UserIsSeed OK,", id)
+		}
+
+		idd, err := sc.peekUser()
+		if err != nil {
+			t.Error("peekUser Error:", err)
+		} else {
+			if idd == id {
+				t.Log("peekUser OK:", id, "is peek")
+			} else {
+				t.Error("peekUser Error: want ID", id, ",but get", idd)
+			}
 		}
 	}
 
@@ -189,6 +211,52 @@ func TestSeedOp(t *testing.T) {
 			} else {
 				t.Error("UnmarkSeed Error:", id, "is  seed")
 			}
+		}
+	}
+
+	pick := func(score interface{}) bool {
+		if score.(int64) >= 4 {
+			return true
+		} else {
+			return false
+		}
+	}
+	id, err = sc.GetSeed(pick)
+	if err != nil {
+		t.Error("GetSeed Error:", err)
+	} else {
+		if id == "4" {
+			t.Log("GetSeed OK:id is", id)
+		} else {
+			t.Error("GetSeed Error: want id 4, but get", id)
+		}
+	}
+
+	if sc.UserIsSeed(id) {
+		t.Log("GetSeed and UserIsSeed OK")
+	} else {
+		t.Error("GetSeed not mark user as seed")
+	}
+
+	score, err := sc.getUserScore(id)
+	if err != nil {
+		t.Error("getUserScore Error:", err)
+	} else {
+		if score == -4 {
+			t.Log("getUserScore OK: score is", score)
+		} else {
+			t.Error("getUserScore Error: want score -4, but get", score)
+		}
+	}
+
+	id, err = sc.GetSeed(pick)
+	if err != nil {
+		t.Error("GetSeed Error:", err)
+	} else {
+		if id == "" {
+			t.Log("GetSeed OK:id is empty", id)
+		} else {
+			t.Error("GetSeed Error: want id empty, but get", id)
 		}
 	}
 

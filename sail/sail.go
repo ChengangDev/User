@@ -42,7 +42,7 @@ type Rudder struct {
 	OtherListPatterns []string
 }
 
-type UserInfo map[string]string
+//type UserInfo map[string]string
 
 type Seed struct {
 	FixedFormater string
@@ -63,10 +63,14 @@ type SharedCookie struct {
 	cj  *cookiejar.Jar
 }
 
-func NewSharedCookie(url string) (sck *SharedCookie, err error) {
+func NewSharedCookie(url string) (sck *SharedCookie) {
 	sck = &SharedCookie{}
+	var err error
 	sck.cj, err = GetCookie(url)
-	return sck, err
+	if err != nil {
+		log.Fatal("NewSharedCookie Error:", err)
+	}
+	return sck
 }
 
 func (ck *SharedCookie) GetSharedCookie() (cj *cookiejar.Jar, err error) {
@@ -277,93 +281,6 @@ func ParseJson(resp string, out *map[string]interface{}) (err error) {
 	json.Unmarshal(b, out)
 
 	//log.Println(out)
-	return
-}
-
-//fetch all followers of the seed
-func FetchFollowers(s *Seed, sck *SharedCookie, ch chan UserInfo) (err error) {
-	log.Println("FetchFollowers:Start Fetch Followers of", s.ID)
-	defer close(ch)
-
-	for {
-		//interval between each request
-		sch := make(chan int)
-		tik := func(sig chan int) {
-			time.Sleep(time.Millisecond * time.Duration(s.Interval))
-			close(sig)
-		}
-		tik(sch)
-
-		url := s.GetUrl()
-		var resp string
-		if sck == nil {
-			//get without cookie
-			resp, err = GetRequestByCookie(url, nil)
-			if err != nil {
-				log.Fatal(err)
-				continue
-			}
-		} else {
-			//use cookie
-			cj, err := sck.GetSharedCookie()
-			if err != nil {
-				log.Fatal(err)
-				return err
-			}
-			resp, err = GetRequestByCookie(url, cj)
-			if err != nil {
-				//in case cookie out of date, update cookie for another time
-				log.Println("Try update cookie...")
-				cj, err := sck.UpdateSharedCookie()
-				if err != nil {
-					log.Fatal(err)
-					return err
-				}
-				//another get using new cookie
-				resp, err = GetRequestByCookie(url, cj)
-				if err != nil {
-					log.Fatal(err)
-					continue
-				}
-				log.Println("Use new cookie in success.")
-			}
-		}
-		m := map[string]interface{}{}
-		ParseJson(resp, &m)
-
-		followers, ok := m["followers"].([]interface{})
-		if !ok {
-			log.Fatalln("Parse followers as []interface{} failed")
-			continue
-		}
-		for _, v := range followers {
-			//log.Println(reflect.TypeOf(u))
-			mv := v.(map[string]interface{})
-			//log.Println(mv)
-			//log.Println(reflect.TypeOf(mv["id"]))
-			u, _ := ValueToString(&mv)
-			ch <- UserInfo(*u)
-		}
-
-		pageCount := m["maxPage"].(float64)
-		//log.Println(pageCount)
-		if !ok {
-			log.Fatalln("Parse page count failed.")
-			break
-		}
-
-		s.PageNo++
-		if s.PageNo > int(pageCount) {
-			log.Println("Parse end of followers.")
-			break
-		}
-
-		//interval ends
-		for _ = range sch {
-			//
-		}
-	}
-	close(ch)
 	return
 }
 

@@ -14,7 +14,7 @@ type DbOp interface {
 	//ClearUsers() error
 
 	//check if user is existed
-	UserExisted(id string) (bool, error)
+	UserExisted(id string) bool
 	//add a user
 	AddUser(id string, v *map[string]string) error
 	//get user all info
@@ -62,17 +62,17 @@ func (sc *SeaClient) Close() {
 }
 
 //interfaces
-func (sc *SeaClient) UserExisted(id string) (b bool, err error) {
+func (sc *SeaClient) UserExisted(id string) (b bool) {
 	ret, err := sc.cli.Cmd("EXISTS", getID(id)).Int()
 	if err != nil {
 		log.Fatalln(err)
-		return
+		return false
 	}
 
 	if ret == 1 {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 func (sc *SeaClient) AddUser(id string, v *map[string]string) (err error) {
